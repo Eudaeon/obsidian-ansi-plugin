@@ -1,99 +1,234 @@
-import {App, Editor, MarkdownView, Modal, Notice, Plugin} from 'obsidian';
-import {DEFAULT_SETTINGS, MyPluginSettings, SampleSettingTab} from "./settings";
+import { Plugin } from "obsidian";
+import { parse } from "@ansi-tools/parser";
 
-// Remember to rename these classes and interfaces!
-
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
-
-	async onload() {
-		await this.loadSettings();
-
-		// This creates an icon in the left ribbon.
-		this.addRibbonIcon('dice', 'Sample', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
-
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status bar text');
-
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-modal-simple',
-			name: 'Open modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'replace-selected',
-			name: 'Replace selected content',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				editor.replaceSelection('Sample editor command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-modal-complex',
-			name: 'Open modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-				return false;
-			}
-		});
-
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			new Notice("Click");
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
-
-	}
-
-	onunload() {
-	}
-
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<MyPluginSettings>);
-	}
-
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
+interface AnsiStyle {
+	fg?: string;
+	bg?: string;
+	bold?: boolean;
+	italic?: boolean;
+	underline?: boolean;
+	dim?: boolean;
+	inverse?: boolean;
+	strikethrough?: boolean;
 }
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
+interface AnsiToken {
+	type: string;
+	raw: string;
+	command?: string;
+	params?: string[];
+	value?: string;
+	text?: string;
+}
+
+export default class AnsiPlugin extends Plugin {
+	async onload() {
+		this.registerMarkdownPostProcessor((element, context) => {
+			const codeblocks = element.querySelectorAll("code.language-ansi");
+
+			codeblocks.forEach((codeblock) => {
+				const originalText = (codeblock as HTMLElement).innerText;
+				const textToConvert = originalText
+					.replace(/\\e/g, "\x1b")
+					.replace(/\\n/g, "\n")
+					.replace(/\\t/g, "\t")
+					.replace(/\\x([0-9A-Fa-f]{2})/g, (_, hex: string) =>
+						String.fromCharCode(parseInt(hex, 16))
+					)
+					.replace(/\\u([0-9A-Fa-f]{4})/g, (_, hex: string) =>
+						String.fromCharCode(parseInt(hex, 16))
+					);
+
+				const htmlContent = this.ansiToHtml(textToConvert);
+
+				if (htmlContent) {
+					const preElement = codeblock.parentElement;
+
+					if (preElement && preElement.tagName === "PRE") {
+						const newPre = document.createElement("pre");
+						newPre.className = preElement.className;
+
+						const newCode = newPre.createEl("code", {
+							cls: "language-ansi is-loaded",
+						});
+
+						// eslint-disable-next-line @microsoft/sdl/no-inner-html
+						newCode.innerHTML = htmlContent;
+						preElement.replaceWith(newPre);
+					} else {
+						// eslint-disable-next-line @microsoft/sdl/no-inner-html
+						codeblock.innerHTML = htmlContent;
+						codeblock.addClass("is-loaded");
+					}
+				}
+			});
+		});
 	}
 
-	onOpen() {
-		let {contentEl} = this;
-		contentEl.setText('Woah!');
+	ansiToHtml(input: string): string {
+		const tokens = parse(input) as unknown as AnsiToken[];
+		let html = "";
+		let style: AnsiStyle = {};
+
+		if (!tokens || !Array.isArray(tokens)) {
+			return input;
+		}
+
+		for (const token of tokens) {
+			if (token.type === "TEXT") {
+				const content = token.value || token.text || token.raw;
+				if (content) {
+					html += this.renderText(content, style);
+				}
+			} else if (token.type === "CSI" && token.command === "m") {
+				const rawParams =
+					token.params && token.params.length > 0
+						? token.params
+						: ["0"];
+				const params = rawParams.map((p) => parseInt(p, 10));
+
+				for (let i = 0; i < params.length; i++) {
+					const code = params[i];
+					if (code === undefined || isNaN(code)) continue;
+
+					if (code === 0) {
+						style = {};
+					} else if (code === 1) {
+						style.bold = true;
+					} else if (code === 2) {
+						style.dim = true;
+					} else if (code === 3) {
+						style.italic = true;
+					} else if (code === 4) {
+						style.underline = true;
+					} else if (code === 7) {
+						style.inverse = true;
+					} else if (code === 9) {
+						style.strikethrough = true;
+					} else if (code === 22) {
+						style.bold = false;
+						style.dim = false;
+					} else if (code === 23) {
+						style.italic = false;
+					} else if (code === 24) {
+						style.underline = false;
+					} else if (code === 27) {
+						style.inverse = false;
+					} else if (code === 29) {
+						style.strikethrough = false;
+					} else if (code >= 30 && code <= 37) {
+						style.fg = this.getAnsiColor(code - 30);
+					} else if (code === 39) {
+						delete style.fg;
+					} else if (code >= 40 && code <= 47) {
+						style.bg = this.getAnsiColor(code - 40);
+					} else if (code === 49) {
+						delete style.bg;
+					} else if (code >= 90 && code <= 97) {
+						style.fg = this.getAnsiColor(code - 90, true);
+					} else if (code >= 100 && code <= 107) {
+						style.bg = this.getAnsiColor(code - 100, true);
+					} else if (code === 38 || code === 48) {
+						const isFg = code === 38;
+						const type = params[i + 1];
+
+						const colorCode = params[i + 2];
+
+						if (type === 5 && colorCode !== undefined) {
+							const color = this.get256Color(colorCode);
+							if (isFg) style.fg = color;
+							else style.bg = color;
+							i += 2;
+						} else if (type === 2) {
+							let isIso = false;
+							if (params[i + 2] === 0 && params[i + 5] === 0) {
+								isIso = true;
+							}
+
+							const offset = isIso ? 1 : 0;
+							const r = params[i + 2 + offset] ?? 0;
+							const g = params[i + 3 + offset] ?? 0;
+							const b = params[i + 4 + offset] ?? 0;
+
+							const color = `rgb(${r},${g},${b})`;
+							if (isFg) style.fg = color;
+							else style.bg = color;
+							i += 4 + offset;
+						}
+					}
+				}
+			}
+		}
+		return html;
 	}
 
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
+	renderText(text: string, style: AnsiStyle): string {
+		const styles: string[] = [];
+		if (style.bold) styles.push("font-weight:bold");
+		if (style.italic) styles.push("font-style:italic");
+		if (style.underline) styles.push("text-decoration:underline");
+		if (style.strikethrough) styles.push("text-decoration:line-through");
+		if (style.dim) styles.push("opacity:0.6");
+
+		let fg = style.fg;
+		let bg = style.bg;
+
+		if (style.inverse) {
+			const temp = fg;
+			fg = bg || "var(--text-normal)";
+			bg = temp || "var(--background-primary)";
+		}
+
+		if (fg) styles.push(`color:${fg}`);
+		if (bg) styles.push(`background-color:${bg}`);
+
+		const escapedText = text
+			.replace(/&/g, "&amp;")
+			.replace(/</g, "&lt;")
+			.replace(/>/g, "&gt;")
+			.replace(/"/g, "&quot;")
+			.replace(/'/g, "&#039;");
+
+		if (styles.length > 0) {
+			return `<span style="${styles.join(";")}">${escapedText}</span>`;
+		}
+		return escapedText;
+	}
+
+	getAnsiColor(index: number, bright = false): string {
+		const colors = [
+			"var(--color-black, black)",
+			"var(--color-red, #d04255)",
+			"var(--color-green, #08979c)",
+			"var(--color-yellow, #d4b106)",
+			"var(--color-blue, #1890ff)",
+			"var(--color-purple, #6900a1)",
+			"var(--color-cyan, #08979c)",
+			"var(--color-white, white)",
+		];
+		const brightColors = [
+			"gray",
+			"#ff7875",
+			"#5cdbd3",
+			"#ffec3d",
+			"#69c0ff",
+			"#b37feb",
+			"#5cdbd3",
+			"white",
+		];
+		return (bright ? brightColors[index] : colors[index]) || "";
+	}
+
+	get256Color(n: number): string {
+		if (n < 16) return this.getAnsiColor(n % 8, n >= 8);
+		if (n < 232) {
+			const index = n - 16;
+			const r = Math.floor(index / 36) * 51;
+			const g = Math.floor((index % 36) / 6) * 51;
+			const b = (index % 6) * 51;
+			return `rgb(${r},${g},${b})`;
+		}
+		const gray = (n - 232) * 10 + 8;
+		return `rgb(${gray},${gray},${gray})`;
 	}
 }

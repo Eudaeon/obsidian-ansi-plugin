@@ -1,11 +1,10 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "obsidian-ansi-plugin",
+	"name": "Obsidian ANSI Plugin",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "An Obsidian plugin to render ANSI escape codes in your notes.",
+	"author": "Eudaeon",
+	"authorUrl": "https://github.com/Eudaeon",
 	"isDesktopOnly": false
 }

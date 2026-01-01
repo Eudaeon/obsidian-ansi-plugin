@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-sample-plugin",
+	"name": "obsidian-ansi-plugin",
 	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"description": "An Obsidian plugin to render ANSI escape codes in your notes.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
@@ -19,11 +19,10 @@
 		"globals": "14.0.0",
 		"tslib": "2.4.0",
 		"typescript": "^5.8.3",
-		"typescript-eslint": "8.35.1",
-		"@eslint/js": "9.30.1",
-		"jiti": "2.6.1"
+		"typescript-eslint": "8.35.1"
 	},
 	"dependencies": {
+		"@ansi-tools/parser": "^1.0.12",
 		"obsidian": "latest"
 	}
 }
