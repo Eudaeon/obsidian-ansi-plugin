@@ -2,10 +2,10 @@
 
 <div align="center">
 
-[![GitHub stars](https://img.shields.io/github/stars/Eudaeon/set-uid-gid-root?style=for-the-badge)](https://github.com/Eudaeon/set-uid-gid-root/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/Eudaeon/set-uid-gid-root?style=for-the-badge)](https://github.com/Eudaeon/set-uid-gid-root/network)
-[![GitHub issues](https://img.shields.io/github/issues/Eudaeon/set-uid-gid-root?style=for-the-badge)](https://github.com/Eudaeon/set-uid-gid-root/issues)
-[![GitHub license](https://img.shields.io/github/license/Eudaeon/set-uid-gid-root?style=for-the-badge)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/Eudaeon/obsidian-ansi-plugin?style=for-the-badge)](https://github.com/Eudaeon/obsidian-ansi-plugin/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/Eudaeon/obsidian-ansi-plugin?style=for-the-badge)](https://github.com/Eudaeon/obsidian-ansi-plugin/network)
+[![GitHub issues](https://img.shields.io/github/issues/Eudaeon/obsidian-ansi-plugin?style=for-the-badge)](https://github.com/Eudaeon/obsidian-ansi-plugin/issues)
+[![GitHub license](https://img.shields.io/github/license/Eudaeon/obsidian-ansi-plugin?style=for-the-badge)](LICENSE)
 
 **An Obsidian plugin to render ANSI escape codes in your notes.**
 
