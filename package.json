@@ -23,6 +23,7 @@
 	},
 	"dependencies": {
 		"@ansi-tools/parser": "^1.0.12",
+		"jiti": "^2.6.1",
 		"obsidian": "latest"
 	}
 }
