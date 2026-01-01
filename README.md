@@ -54,7 +54,11 @@ Wrap your ANSI-encoded text in a code block with the `ansi` language identifier:
 
 The plugin will automatically detect these blocks and render them with the appropriate styling in "Reading view" mode.
 
+<div align="center">
+
 ![ANSI output](img/ansi-output.png)
+
+</div>
 
 ---
 
