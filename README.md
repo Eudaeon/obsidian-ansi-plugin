@@ -23,7 +23,7 @@ Clone the repository into your vault and install dependencies with:
 
 ```bash
 mkdir -p .obsidian/plugins
-git clone https://github.com/Eudaeon/obsidian-ansi-plugin .obsidian/plugins
+git clone https://github.com/Eudaeon/obsidian-ansi-plugin .obsidian/plugins/obsidian-ansi-plugin
 cd .obsidian/plugins/obsidian-ansi-plugin
 npm install
 ```
