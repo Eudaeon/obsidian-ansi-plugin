@@ -141,7 +141,7 @@ export default class AnsiPlugin extends Plugin {
 							i += 2;
 						} else if (type === 2) {
 							let isIso = false;
-							if (params[i + 2] === 0 && params[i + 5] === 0) {
+							if (params[i + 2] === 0) {
 								isIso = true;
 							}
 
