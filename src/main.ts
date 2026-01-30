@@ -172,11 +172,11 @@ export default class AnsiPlugin extends Plugin {
 		const span = document.createElement("span");
 		span.textContent = text;
 
-		if (style.bold) span.style.fontWeight = "bold";
-		if (style.italic) span.style.fontStyle = "italic";
-		if (style.underline) span.style.textDecoration = "underline";
-		if (style.strikethrough) span.style.textDecoration = "line-through";
-		if (style.dim) span.style.opacity = "0.6";
+		if (style.bold) span.setCssProps({ "font-weight": "bold" });
+		if (style.italic) span.setCssProps({ "font-style": "italic" });
+		if (style.underline) span.setCssProps({ "text-decoration": "underline" });
+		if (style.strikethrough) span.setCssProps({ "text-decoration": "line-through" });
+		if (style.dim) span.setCssProps({ "opacity": "0.6" });
 
 		let fg = style.fg;
 		let bg = style.bg;
