@@ -1,6 +1,13 @@
 import { Plugin } from "obsidian";
 import { parse } from "@ansi-tools/parser";
 
+// Cache regex patterns to avoid recompilation
+const REGEX_ESCAPE = /\\e/g;
+const REGEX_NEWLINE = /\\n/g;
+const REGEX_TAB = /\\t/g;
+const REGEX_HEX = /\\x([0-9A-Fa-f]{2})/g;
+const REGEX_UNICODE = /\\u([0-9A-Fa-f]{4})/g;
+
 interface AnsiStyle {
 	fg?: string;
 	bg?: string;
@@ -24,72 +31,69 @@ interface AnsiToken {
 export default class AnsiPlugin extends Plugin {
 	async onload() {
 		this.registerMarkdownPostProcessor((element, context) => {
-			const codeblocks = element.querySelectorAll("code.language-ansi");
+			const codeblocks = element.querySelectorAll("code.language-terminal");
 
 			codeblocks.forEach((codeblock) => {
 				const originalText = (codeblock as HTMLElement).innerText;
 				const textToConvert = originalText
-					.replace(/\\e/g, "\x1b")
-					.replace(/\\n/g, "\n")
-					.replace(/\\t/g, "\t")
-					.replace(/\\x([0-9A-Fa-f]{2})/g, (_, hex: string) =>
+					.replace(REGEX_ESCAPE, "\x1b")
+					.replace(REGEX_NEWLINE, "\n")
+					.replace(REGEX_TAB, "\t")
+					.replace(REGEX_HEX, (_, hex: string) =>
 						String.fromCharCode(parseInt(hex, 16))
 					)
-					.replace(/\\u([0-9A-Fa-f]{4})/g, (_, hex: string) =>
+					.replace(REGEX_UNICODE, (_, hex: string) =>
 						String.fromCharCode(parseInt(hex, 16))
 					);
 
-				const htmlContent = this.ansiToHtml(textToConvert);
+				const fragment = this.ansiToFragment(textToConvert);
 
-				if (htmlContent) {
-					const preElement = codeblock.parentElement;
+				const preElement = codeblock.parentElement;
 
-					if (preElement && preElement.tagName === "PRE") {
-						const newPre = document.createElement("pre");
-						newPre.className = preElement.className;
+				if (preElement && preElement.tagName === "PRE") {
+					const newPre = document.createElement("pre");
+					newPre.className = preElement.className;
 
-						const newCode = newPre.createEl("code", {
-							cls: "language-ansi is-loaded",
-						});
+					const newCode = newPre.createEl("code", {
+						cls: "language-terminal is-loaded",
+					});
 
-						// eslint-disable-next-line @microsoft/sdl/no-inner-html
-						newCode.innerHTML = htmlContent;
-						preElement.replaceWith(newPre);
-					} else {
-						// eslint-disable-next-line @microsoft/sdl/no-inner-html
-						codeblock.innerHTML = htmlContent;
-						codeblock.addClass("is-loaded");
-					}
+					newCode.appendChild(fragment);
+					preElement.replaceWith(newPre);
+				} else {
+					codeblock.innerHTML = "";
+					codeblock.appendChild(fragment);
+					codeblock.addClass("is-loaded");
 				}
 			});
 		});
 	}
 
-	ansiToHtml(input: string): string {
+	ansiToFragment(input: string): DocumentFragment {
 		const tokens = parse(input) as unknown as AnsiToken[];
-		let html = "";
+		const fragment = document.createDocumentFragment();
 		let style: AnsiStyle = {};
 
 		if (!tokens || !Array.isArray(tokens)) {
-			return input;
+			fragment.textContent = input;
+			return fragment;
 		}
 
 		for (const token of tokens) {
 			if (token.type === "TEXT") {
 				const content = token.value || token.text || token.raw;
 				if (content) {
-					html += this.renderText(content, style);
+					fragment.appendChild(this.createStyledSpan(content, style));
 				}
 			} else if (token.type === "CSI" && token.command === "m") {
-				const rawParams =
+				const params =
 					token.params && token.params.length > 0
 						? token.params
 						: ["0"];
-				const params = rawParams.map((p) => parseInt(p, 10));
 
 				for (let i = 0; i < params.length; i++) {
-					const code = params[i];
-					if (code === undefined || isNaN(code)) continue;
+					const code = parseInt(params[i] ?? "", 10);
+					if (isNaN(code)) continue;
 
 					if (code === 0) {
 						style = {};
@@ -130,25 +134,27 @@ export default class AnsiPlugin extends Plugin {
 						style.bg = this.getAnsiColor(code - 100, true);
 					} else if (code === 38 || code === 48) {
 						const isFg = code === 38;
-						const type = params[i + 1];
+						const type = parseInt(params[i + 1] ?? "", 10);
 
-						const colorCode = params[i + 2];
-
-						if (type === 5 && colorCode !== undefined) {
-							const color = this.get256Color(colorCode);
-							if (isFg) style.fg = color;
-							else style.bg = color;
+						if (type === 5) {
+							const colorCode = parseInt(params[i + 2] ?? "", 10);
+							if (!isNaN(colorCode)) {
+								const color = this.get256Color(colorCode);
+								if (isFg) style.fg = color;
+								else style.bg = color;
+							}
 							i += 2;
 						} else if (type === 2) {
 							let isIso = false;
-							if (params[i + 2] === 0) {
+							const p2 = parseInt(params[i + 2] ?? "", 10);
+							if (p2 === 0) {
 								isIso = true;
 							}
 
 							const offset = isIso ? 1 : 0;
-							const r = params[i + 2 + offset] ?? 0;
-							const g = params[i + 3 + offset] ?? 0;
-							const b = params[i + 4 + offset] ?? 0;
+							const r = parseInt(params[i + 2 + offset] ?? "", 10) || 0;
+							const g = parseInt(params[i + 3 + offset] ?? "", 10) || 0;
+							const b = parseInt(params[i + 4 + offset] ?? "", 10) || 0;
 
 							const color = `rgb(${r},${g},${b})`;
 							if (isFg) style.fg = color;
@@ -159,16 +165,18 @@ export default class AnsiPlugin extends Plugin {
 				}
 			}
 		}
-		return html;
+		return fragment;
 	}
 
-	renderText(text: string, style: AnsiStyle): string {
-		const styles: string[] = [];
-		if (style.bold) styles.push("font-weight:bold");
-		if (style.italic) styles.push("font-style:italic");
-		if (style.underline) styles.push("text-decoration:underline");
-		if (style.strikethrough) styles.push("text-decoration:line-through");
-		if (style.dim) styles.push("opacity:0.6");
+	createStyledSpan(text: string, style: AnsiStyle): HTMLElement {
+		const span = document.createElement("span");
+		span.textContent = text;
+
+		if (style.bold) span.style.fontWeight = "bold";
+		if (style.italic) span.style.fontStyle = "italic";
+		if (style.underline) span.style.textDecoration = "underline";
+		if (style.strikethrough) span.style.textDecoration = "line-through";
+		if (style.dim) span.style.opacity = "0.6";
 
 		let fg = style.fg;
 		let bg = style.bg;
@@ -179,20 +187,10 @@ export default class AnsiPlugin extends Plugin {
 			bg = temp || "var(--background-primary)";
 		}
 
-		if (fg) styles.push(`color:${fg}`);
-		if (bg) styles.push(`background-color:${bg}`);
+		if (fg) span.style.color = fg;
+		if (bg) span.style.backgroundColor = bg;
 
-		const escapedText = text
-			.replace(/&/g, "&amp;")
-			.replace(/</g, "&lt;")
-			.replace(/>/g, "&gt;")
-			.replace(/"/g, "&quot;")
-			.replace(/'/g, "&#039;");
-
-		if (styles.length > 0) {
-			return `<span style="${styles.join(";")}">${escapedText}</span>`;
-		}
-		return escapedText;
+		return span;
 	}
 
 	getAnsiColor(index: number, bright = false): string {
